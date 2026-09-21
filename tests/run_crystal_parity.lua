@@ -30,6 +30,7 @@ local suites = {
   "crystal_move_animation_runtime_test.lua",
   "crystal_multi_turn_test.lua",
   "crystal_patch_coverage_test.lua",
+  "crystal_pokedex_sprite_test.lua",
   "crystal_presentation_test.lua",
   "crystal_progression_test.lua",
   "crystal_registry_compat_test.lua",

@@ -155,7 +155,10 @@ local function storageCall(method, ...)
 end
 
 local function safeAssetKey(path)
-  if type(path) ~= "string" or path:sub(1, #VIRTUAL_PREFIX) ~= VIRTUAL_PREFIX then
+  if type(path) ~= "string" then return nil end
+  if path:sub(1, 2) == "./" then path = path:sub(3) end
+  if path:sub(1, 1) == "/" then path = path:sub(2) end
+  if path:sub(1, #VIRTUAL_PREFIX) ~= VIRTUAL_PREFIX then
     return nil
   end
   local relative = path:sub(#VIRTUAL_PREFIX + 1)
@@ -662,6 +665,42 @@ function Cache.installAssetBridge()
   Assets.exists = function(path)
     if safeAssetKey(path) then return Cache.readAsset(path) ~= nil end
     return oldExists(path)
+  end
+
+  if love and love.graphics and love.graphics.newImage then
+    RuntimePatches.watch(love.graphics)
+    local oldNewImage = love.graphics.newImage
+    love.graphics.newImage = function(arg, ...)
+      if type(arg) == "string" and safeAssetKey(arg) then
+        return Assets.image(arg)
+      end
+      return oldNewImage(arg, ...)
+    end
+  end
+
+  if love and love.image and love.image.newImageData then
+    RuntimePatches.watch(love.image)
+    local oldNewImageData = love.image.newImageData
+    love.image.newImageData = function(arg, ...)
+      if type(arg) == "string" and safeAssetKey(arg) then
+        return Assets.imageData(arg)
+      end
+      return oldNewImageData(arg, ...)
+    end
+  end
+
+  if love and love.filesystem and love.filesystem.getInfo then
+    RuntimePatches.watch(love.filesystem)
+    local oldGetInfo = love.filesystem.getInfo
+    love.filesystem.getInfo = function(path, ...)
+      if type(path) == "string" and safeAssetKey(path) then
+        if Cache.readAsset(path) ~= nil then
+          return { type = "file", size = 0, modtime = 0 }
+        end
+        return nil
+      end
+      return oldGetInfo(path, ...)
+    end
   end
 end
 

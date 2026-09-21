@@ -9,6 +9,8 @@ return function(game)
     { "PIKACHU", "dex_5x5_pikachu.png" },
     { "MAGIKARP", "dex_6x6_magikarp.png" },
     { "CHARIZARD", "dex_7x7_charizard.png" },
+    { "CHIKORITA", "dex_5x5_chikorita.png" },
+    { "LUGIA", "dex_7x7_lugia.png" },
   }) do
     while game.stack:top() do game.stack:pop() end
     Screens.push(game, "DexEntryMenu", { species=row[1], forceOwned=true })
