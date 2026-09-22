@@ -116,6 +116,10 @@ eq(id:getHeight(), 56, "imageData height is 56")
 local info = love.filesystem.getInfo(testDexPath)
 ok(info ~= nil and info.type == "file", "bridged getInfo reports virtual file")
 
+-- love.filesystem.getInfo respects filtertype
+eq(love.filesystem.getInfo(testDexPath, "directory"), nil, "virtual file is not a directory")
+ok(love.filesystem.getInfo(testDexPath, "file") ~= nil, "virtual file matches file filter")
+
 -- Non-virtual paths pass through to original handlers
 local nonVirtual = love.filesystem.getInfo("existing_file.png")
 ok(nonVirtual ~= nil, "non-virtual getInfo passes through")
@@ -130,6 +134,28 @@ if path then okSprite, sprite = pcall(love.graphics.newImage, path) end
 ok(okSprite and sprite ~= nil, "DexEntryMenu pattern successfully populates sprite")
 eq(sprite:getWidth(), 56, "DexEntryMenu sprite has width 56")
 eq(sprite:getHeight(), 56, "DexEntryMenu sprite has height 56")
+
+-- Simulated DexEntryMenu cry timeout protection:
+local mockStuckSource = { isPlaying = function() return true end }
+local mockMenu = { crySrc = mockStuckSource }
+local menuCrying = function(self)
+  local src = self.crySrc
+  if not src then self._cryFrames = nil return false end
+  self._cryFrames = (self._cryFrames or 0) + 1
+  if self._cryFrames > 60 then
+    self.crySrc = nil
+    self._cryFrames = nil
+    return false
+  end
+  local ok, playing = pcall(src.isPlaying, src)
+  if ok and playing then return true end
+  self.crySrc = nil
+  self._cryFrames = nil
+  return false
+end
+for _ = 1, 60 do eq(menuCrying(mockMenu), true, "crying is active while playing") end
+eq(menuCrying(mockMenu), false, "crying times out after 60 frames if audio sticks")
+eq(mockMenu.crySrc, nil, "crySrc cleared after timeout")
 
 -- Test restoration
 Patches.restore()

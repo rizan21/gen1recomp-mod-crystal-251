@@ -422,11 +422,10 @@ local function registerContent(mod, cache)
       local description
 
       if #page1 > 0 or #page2 > 0 then
-        description = table.concat(page1, "\n")
-        if #page2 > 0 then
-          if description ~= "" then description = description .. "\n\n" end
-          description = description .. table.concat(page2, "\n")
-        end
+        local parts = {}
+        if #page1 > 0 then parts[#parts + 1] = table.concat(page1, "\n") end
+        if #page2 > 0 then parts[#parts + 1] = table.concat(page2, "\n") end
+        description = table.concat(parts, "\f")
       else
         description = dexEntry.text or ""
       end
@@ -744,6 +743,49 @@ return RuntimePatches.capture(function(mod)
   mod.events:on("game.ready", function(ev)
     game = (ev and ev.game) or require("src.core.Game")
   end)
+  local okDex, DexEntryMenu = pcall(require, "src.ui.DexEntryMenu")
+  if okDex and type(DexEntryMenu) == "table" and DexEntryMenu.crying then
+    RuntimePatches.watch(DexEntryMenu)
+    local oldCrying = DexEntryMenu.crying
+    DexEntryMenu.crying = function(self)
+      local src = self.crySrc
+      if not src then self._cryFrames = nil return false end
+      self._cryFrames = (self._cryFrames or 0) + 1
+      if self._cryFrames > 60 then
+        self.crySrc = nil
+        self._cryFrames = nil
+        return false
+      end
+      local ok, playing = pcall(src.isPlaying, src)
+      if ok and playing then return true end
+      self.crySrc = nil
+      self._cryFrames = nil
+      return false
+    end
+  end
+
+  local okTitle, TitleState = pcall(require, "src.ui.TitleState")
+  if okTitle and type(TitleState) == "table" and TitleState.update then
+    RuntimePatches.watch(TitleState)
+    local oldTitleUpdate = TitleState.update
+    TitleState.update = function(self, dt)
+      if (self.phase == "exitCry" or self.phase == "cry") and (self.timer or 0) >= 45 then
+        if self.phase == "exitCry" then
+          self.exitCrySrc = nil
+          self.phase = "loop"
+          self:toMenu()
+        else
+          self.crySrc = nil
+          self:startMusic()
+          self.phase = "loop"
+          self.blinkTimer = 0
+        end
+        return
+      end
+      return oldTitleUpdate(self, dt)
+    end
+  end
+
   mod.exports.fingerprint = cache.fingerprint
   mod.exports.revision = cache.revision
   mod.exports.dexSize = 251

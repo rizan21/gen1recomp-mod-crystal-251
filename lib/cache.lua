@@ -650,6 +650,11 @@ function Cache.installAssetBridge()
   local Assets = RuntimePatches.watch(require("src.render.Assets"))
   if Assets._crystal251StorageBridge then return end
   Assets._crystal251StorageBridge = true
+
+  local oldNewImage = love and love.graphics and love.graphics.newImage
+  local oldNewImageData = love and love.image and love.image.newImageData
+  local oldGetInfo = love and love.filesystem and love.filesystem.getInfo
+
   local oldImage, oldImageData, oldExists = Assets.image, Assets.imageData, Assets.exists
   Assets.imageData = function(path)
     if safeAssetKey(path) then return imageData(path) end
@@ -657,7 +662,10 @@ function Cache.installAssetBridge()
   end
   Assets.image = function(path)
     if safeAssetKey(path) then
-      if not imageCache[path] then imageCache[path] = love.graphics.newImage(imageData(path)) end
+      if not imageCache[path] then
+        local data = imageData(path)
+        imageCache[path] = oldNewImage and oldNewImage(data) or love.graphics.newImage(data)
+      end
       return imageCache[path]
     end
     return oldImage(path)
@@ -667,9 +675,8 @@ function Cache.installAssetBridge()
     return oldExists(path)
   end
 
-  if love and love.graphics and love.graphics.newImage then
+  if oldNewImage then
     RuntimePatches.watch(love.graphics)
-    local oldNewImage = love.graphics.newImage
     love.graphics.newImage = function(arg, ...)
       if type(arg) == "string" and safeAssetKey(arg) then
         return Assets.image(arg)
@@ -678,9 +685,8 @@ function Cache.installAssetBridge()
     end
   end
 
-  if love and love.image and love.image.newImageData then
+  if oldNewImageData then
     RuntimePatches.watch(love.image)
-    local oldNewImageData = love.image.newImageData
     love.image.newImageData = function(arg, ...)
       if type(arg) == "string" and safeAssetKey(arg) then
         return Assets.imageData(arg)
@@ -689,17 +695,17 @@ function Cache.installAssetBridge()
     end
   end
 
-  if love and love.filesystem and love.filesystem.getInfo then
+  if oldGetInfo then
     RuntimePatches.watch(love.filesystem)
-    local oldGetInfo = love.filesystem.getInfo
-    love.filesystem.getInfo = function(path, ...)
+    love.filesystem.getInfo = function(path, filtertype, ...)
       if type(path) == "string" and safeAssetKey(path) then
+        if filtertype and filtertype ~= "file" then return nil end
         if Cache.readAsset(path) ~= nil then
           return { type = "file", size = 0, modtime = 0 }
         end
         return nil
       end
-      return oldGetInfo(path, ...)
+      return oldGetInfo(path, filtertype, ...)
     end
   end
 end
